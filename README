@@ -1,0 +1,9 @@
+mmseg4n 是基于 mmseg4j(http://code.google.com/p/mmseg4j/) 的 NODEJS 的一种实现。
+mmseg4n 将提供基于 HTTP REST 服务的分词
+
+兼容：
+    NODEJS v0.4.*
+    Darwin (Freebsd、Linux 尚未测试) 
+    
+启动：
+    #mmseg4n/bin/mmseg4n.sh mmseg4n/data/ 127.0.0.1 8085
