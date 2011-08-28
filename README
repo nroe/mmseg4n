@@ -1,9 +1,9 @@
-mmseg4n ÊÇ»ùÓÚ mmseg4j(http://code.google.com/p/mmseg4j/) µÄ NODEJS µÄÒ»ÖÖÊµÏÖ¡£
-mmseg4n ½«Ìá¹©»ùÓÚ HTTP REST ·şÎñµÄ·Ö´Ê
+mmseg4n æ˜¯åŸºäº mmseg4j(http://code.google.com/p/mmseg4j/) çš„ NODEJS çš„ä¸€ç§å®ç°ã€‚
+mmseg4n å°†æä¾›åŸºäº HTTP REST æœåŠ¡çš„åˆ†è¯
 
-¼æÈİ£º
+å…¼å®¹ï¼š
     NODEJS v0.4.*
-    Darwin (Freebsd¡¢Linux ÉĞÎ´²âÊÔ) 
+    Darwin (Freebsdã€Linux å°šæœªæµ‹è¯•) 
     
-Æô¶¯£º
+å¯åŠ¨ï¼š
     #mmseg4n/bin/mmseg4n.sh mmseg4n/data/ 127.0.0.1 8085
