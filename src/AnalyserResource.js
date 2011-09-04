@@ -6,46 +6,54 @@ var url = require('url');
 var util = require('util');
 
 require(ROOT_PATH + "/Seg.js");
-require(ROOT_PATH + "/Analysis/Analyzer/MMseg/Complex.js");
+require(ROOT_PATH + "/Analysis/Analyzer/MMSeg/Complex.js");
 require(ROOT_PATH + "/Seg/Dictionary.js");
-require(ROOT_PATH + "/lib/JSON-JS/json2.js");
+require(ROOT_PATH + "/lib/JSON-js/json2.js");
 
 AnalyserResource = new JS.Class({
-    path: /\/analyser/,
+    path : /\/analyze/,
     
-    tasks: ['first task', 'second task', 'third task'],
-
-    initialize: function(dicDir) {
-        var dic = new Seg_Dictionary(dicDir);
-        this.complex = new Analysis_Analyzer_MMSeg_Complex(dic);
+    analyzer : null,
+    
+    reqUrl : null,
+    text : null,
+    words : new Array(),
+    startSegMemoryUsage : 0,
+    endSegMemoryUsage : 0,
+    
+    initialize: function(dicDir)
+    {
+        this.analyzer = new Analysis_Analyzer_MMSeg_Complex(new Seg_Dictionary(dicDir));
     },
     
-    doGet: function(req, res) {
-        var reqUrl = url.parse(req.url, true);
-        var text = (reqUrl.query) ? reqUrl.query['text'] : null;
+    doGet: function(req, res)
+    {
+    	this.startSegMemoryUsage = process.memoryUsage();
+        this.reqUrl = url.parse(req.url, true);
+        this.text = (this.reqUrl.query) ? this.reqUrl.query['text'] : null;
         
-        var mmseg = new Seg(text, this.complex),
+        this.words.length = 0;
+        var mmseg = new Seg(this.text, this.analyzer),
             result = { "code": 0, "data": new Array(), "msg":"" };
-            words = new Array();
-        
         
         try {
             while ( (word = mmseg.next()) != null ) {
-                words.push(word.getTermText());
+                this.words.push(word.getTermText());
             }
-            result["data"] = words;
+            result["data"] = this.words;
         } catch (Exception) {
             
         }
-
-        console.log(util.inspect(process.memoryUsage()));
+        
+        this.endSegMemoryUsage = process.memoryUsage();
+        LOGGER.info("analyze complex memory usage:"
+        		+ ((this.endSegMemoryUsage.rss - this.startSegMemoryUsage.rss) / 1024) + "(KB)"
+        		+ " total usage:" + (this.endSegMemoryUsage.rss / 1024 / 1024) + "(MB)");
+        
         res.writeHead(200, {'Content-Type': 'text/plain'} );
         res.write(JSON.stringify(result));
         res.end();
         
-        reqUrl = null;
-        text = null;
         mmseg = null;
-        words = null;
     },
 });

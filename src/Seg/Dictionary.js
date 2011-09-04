@@ -5,43 +5,56 @@
  * @package MMSeg4N.seg
  * @see mmseg4j.MaxWord
  */
- 
-var fs      = require("fs"),
-    path    = require("path"),
-    util    = require("util");
+
+var util	= require('util');
+	fs      = require("fs"),
+    path    = require("path");
 
 require(ROOT_PATH + "/Io/FileLineReader.js");
 require(ROOT_PATH + "/Seg/Dictionary/CharNode.js");
 
 Seg_Dictionary = new JS.Class({
-    include: JS.Console,
+    include : JS.Console,
+    charsFilename : "/chars.dic",
+    unitsFilename : "/units.dic",
+    
+    dist : null,
+    unit : null,
+    
+    lastLoadTime : -1,
+    
+    dicPath : null,
+    
+    startDicMemoryUsage : 0,
+    endDicMemoryUsage : 0,
+    startDicTimestamp : 0,
+    endDicTimestamp : 0,
     
     initialize: function(path)
-    {
-        this.charsFilename = '/chars.dic';
-        this.unitsFilename = '/units.dic';
-        this.dist = null;
-        this.unit = null;
-        
-        this.wordsLastTime = new JS.Hash([]);
-        this.lastLoadTime = -1;
-        
+    {   
         this.dicPath = path;
         
-        if (undefined == this.dicPath) {
+        if (undefined == this.dicPath || null == this.dicPath) {
             this.dicPath = this.getDefalutPath();
         }
         
-        util.log("start load dictionary in \"" + this.dicPath + "\""); 
+        LOGGER.info("start load dictionary in \"" + this.dicPath + "\"");
         this.reload();
     },
     
     reload: function()
     {
-        this.wordsLastTime.clear();
-        this.lastLoadTime = new Date().getTime();
-        this.dist = this.loadDic(this.dicPath);
+    	this.startDicMemoryUsage = process.memoryUsage();
+        this.startDicTimestamp = Date.now();
+        
         this.unit = this.loadUnit(this.dicPath);
+        this.dist = this.loadDic(this.dicPath);
+        
+        this.lastLoadTime = this.endDicTimestamp = Date.now();
+        this.endDicMemoryUsage = process.memoryUsage();
+        LOGGER.debug("dictionary memory usage:"
+        		+ ((this.endDicMemoryUsage.rss - this.startDicMemoryUsage.rss) / 1024 / 1024)
+        		+ "(MB) elapsed time:" + ((this.endDicTimestamp - this.startDicTimestamp) / 1000) + "(SEC)");
     },
     
     getLastLoadTime: function()
@@ -57,21 +70,22 @@ Seg_Dictionary = new JS.Class({
      */
     loadDic: function(dicPath)
     {
-        var dic = new JS.Hash([]);
+        var dic = new Object();
         
         if (!path.existsSync(dicPath)) {
+        	LOGGER.warn("dictionary directory \"" + dicPath  + "\" not exists");
             return dic;
         }
         
-        var wordsLastTime = this.wordsLastTime,
-            charsDicFilename = dicPath + this.charsFilename,
+        var charsDicFilename = dicPath + this.charsFilename,
             flr = new Io_FileLineReader(charsDicFilename);
         
+        var line = null, part = null;
         /**
          * 逐行读取 chars.dic 词典以及词频
          */
         while (flr.hasNextLine()) {
-            var line = flr.nextLine();
+            line = flr.nextLine();
             part = line.split(" ");
             
             var cn = new Seg_Dictionary_CharNode();
@@ -79,71 +93,85 @@ Seg_Dictionary = new JS.Class({
                 case 2:
                     cn.setFreq((Math.log(parseInt(part[1]))*100));
                 case 1:
-                    dic.put(part[0].charCodeAt(0), cn);
+                	dic[part[0].charCodeAt(0)] = cn;
             }
         }
         
-        util.log("load dic:\"" + charsDicFilename + "\" success.");
-        fs.lstat(charsDicFilename, function(err, stats) {
-            wordsLastTime.put(charsDicFilename, stats.mtime);
-            util.log("fetch dic:\"" + charsDicFilename +"\" info ok. ctime:" + stats.ctime + " mtime:" + stats.mtime);
-        });
+        line = null, part = null, flr = null;
+        
+        LOGGER.info("load chars.dic \"" + charsDicFilename + "\" success.");
         
         /**
          * 加载 word 词典
          * 尝试加载 dicPath 目录下除 this.charsFilename 以及 this.unitsFilename 的所有 *.dic 文件
          * 如果包含子目录将递归加载
          */
-         var words = this.listWordsFiles();
-         for (var i = 0; i < words.length; i++) {
-             var wordFilename = words[i];
-             switch (wordFilename) {
+        var
+         	wordsCount = 0;
+        	wordsLength = 0;
+         	words = this.listWordsFiles(),
+         	wordFilename = '',
+         	charCode = -1,
+         	wflr = null;
+         
+        for (var i = 0; i < words.length; i++) {
+        	 wordFilename = words[i];
+        	 switch (wordFilename) {
                  case (dicPath + this.charsFilename) : 
                  case (dicPath + this.unitsFilename) :
                     words.splice(i, 1);
                     break;
                     
-                default :
-                    /**
-                     * 加载词典
-                     */
-                    var wflr = new Io_FileLineReader(wordFilename);
-                    while (wflr.hasNextLine()) {
-                        var line    = wflr.nextLine(),
-                            c       = line.charCodeAt(0);
+                 default :
+                     var
+                     	wordTailChars = new Array(),
+                     	wordTailCharCode = -1;
+                     	wordTail = null;
+                     	
+                     /**
+                      * 加载词典
+                      */
+                     wflr = new Io_FileLineReader(wordFilename);
+                     while (wflr.hasNextLine()) {
+                         line = wflr.nextLine(),
+                         charCode = line.charCodeAt(0);
+                         
+                         if (line.length < 2) {
+                             continue;
+                         }
                         
-                        if (line.length < 2) {
-                            continue;
-                        }
-                        
-                        if (35 == c) {
-                            continue;
-                        }
-                        
-                        var cn = dic.get(c);
-                        if (null == cn) {
-                            cn = new Seg_Dictionary_CharNode();
-                            dic.put(c, cn);
-                        }
-                        
-                        var wordTailChar = new Array(),
-                            wordTail = line.substr(1, line.length -1);
-                        for (var i=0; i< wordTail.length; i++) {
-                            wordTailChar.push(wordTail[i].charCodeAt(0));
-                        }
-                        cn.addWordTail(wordTailChar);
-                    }
+                         if (35 == charCode) {
+                             continue;
+                         }
+
+                         var cn = dic[charCode];                   
+                         if (undefined == cn || null == cn) {
+                             cn = new Seg_Dictionary_CharNode();
+                             dic[charCode] = cn;
+                         }
+                         
+                         wordTailChars.length = 0,
+                         wordTailCharCode = -1;
+                         wordTail = line.substr(1, line.length -1);
+                         
+                         for (var i=0; i< wordTail.length; i++) {
+                        	 wordTailCharCode = wordTail[i].charCodeAt(0);
+                        	 wordTailChars.push(wordTailCharCode);
+                         }
+                         
+                         cn.addWordTail(wordTailChars);
+                         wordTail = null, wordTailCharCode = -1;
+                         wordsCount++;
+                         wordsLength += line.length;
+                     }
                     
-                    util.log("load dic:\"" + wordFilename + "\" success.");
-                    fs.lstat(wordFilename, function(err, stats) {
-                        wordsLastTime.put(wordFilename, stats.mtime);
-                        util.log("fetch dic:\"" + wordFilename +"\" info ok. ctime:" + stats.ctime + " mtime:" + stats.mtime);
-                    });
-             }
-         }
-         
-         this.dist = dic;
-         return dic;
+                     LOGGER.info("load \"" + wordFilename + "\" success.");
+        	 }
+        }
+        
+        LOGGER.info("loaded dictionary success. word count:" + wordsCount + " word length:" + wordsLength);
+        words = null;
+        return dic;
     },
     
     /**
@@ -154,14 +182,14 @@ Seg_Dictionary = new JS.Class({
      */
     loadUnit: function(dicPath)
     {
-        var dic = new JS.Hash([]);
+    	var dic = new Object();
         
         if (!path.existsSync(dicPath)) {
+        	LOGGER.warn("dictionary directory \"" + dicPath  + "\" not exists");
             return dic;
         }
         
-        var wordsLastTime = this.wordsLastTime,
-            unitsDicFilename = dicPath + this.unitsFilename,
+        var unitsDicFilename = dicPath + this.unitsFilename,
             flr = new Io_FileLineReader(unitsDicFilename);
         
         /**
@@ -175,15 +203,10 @@ Seg_Dictionary = new JS.Class({
                 continue;
             }
             
-            dic.put(c, true);
+            dic[c] = true;
         }
         
-        util.log("load dic:\"" + unitsDicFilename + "\" success.");
-        fs.lstat(unitsDicFilename, function(err, stats) {
-            wordsLastTime.put(unitsDicFilename, stats.mtime);
-            util.log("fetch dic:\"" + unitsDicFilename +"\" info ok. ctime:" + stats.ctime + " mtime:" + stats.mtime);
-        });
-        
+        LOGGER.info("load units.dic \"" + unitsDicFilename + "\" success.");
         return dic;
     },
     
@@ -193,7 +216,7 @@ Seg_Dictionary = new JS.Class({
      */
     isUnit: function(codePoint)
     {
-        return this.unit.hasKey(codePoint);
+    	return (undefined != this.unit[codePoint]);
     },
     
     /**
@@ -202,7 +225,7 @@ Seg_Dictionary = new JS.Class({
      */
     get: function(ch)
     {
-        return this.dist.get(ch);
+    	return this.dist[ch];
     },
     
     /**
@@ -214,7 +237,7 @@ Seg_Dictionary = new JS.Class({
             return false;
         }
         
-        var cn = this.dist.get(word.charCodeAt(0));
+        var cn = this.dist[word.charCodeAt(0)];
         return (this.search(cn, word, 0, word.length -1) >= 0);
     },
     
@@ -232,14 +255,6 @@ Seg_Dictionary = new JS.Class({
         }
         
         return -1;
-    },
-    
-    /**
-     * @return JS.Hash
-     */
-    getWordsLastTime: function()
-    {
-        return this.wordsLastTime;
     },
     
     /**
@@ -267,8 +282,7 @@ Seg_Dictionary = new JS.Class({
      */
     maxMatchNodeLength: function(sen, offset)
     {
-
-        var node = this.dist.get(sen[offset]);
+    	var node = this.dist[sen[offset]];
         return this.maxMatchNodeLengthByNode(node, sen, offset);
     },
     
@@ -295,11 +309,11 @@ Seg_Dictionary = new JS.Class({
     getDefalutPath: function ()
     {
         if (Seg_Dictionary.defalutPath === null) {
-            Seg_Dictionary.defalutPath = path.dirname(__filename) + '/data';
-            util.log("look up in default dictionary directory path:\"" + Seg_Dictionary.defalutPath + "\"");
+            Seg_Dictionary.defalutPath = __dirname + '/data';
+            LOGGER.info("look up in default dictionary directory path:\"" + Seg_Dictionary.defalutPath + "\"");
             
             if (!path.existsSync(Seg_Dictionary.defalutPath)) {
-                util.debug("warning: default path:\"" + Seg_Dictionary.defalutPath + "\" is not exist.");
+                LOGGER.warn("default path:\"" + Seg_Dictionary.defalutPath + "\" is not exist.");
             }
         }
         
@@ -311,30 +325,30 @@ Seg_Dictionary = new JS.Class({
     */
     listWordsFiles: function(path)
     {
-        if (undefined == path) {
+        if (undefined == path || null == path) {
             path = this.dicPath;
         }
         
-        var files = fs.readdirSync(path),
-        wordsFiles = new Array();
+        var
+            files = fs.readdirSync(path),
+            wordsFiles = new Array();
         
         if (files instanceof Array) {
+            var filename = '';
             for(var i = 0; i < files.length; i++) {
-                var filename = path + "/" + files[i],
-                    ext = filename.split('.').pop();
-               
-                if (ext == 'dic') {
+                filename = path + "/" + files[i];
+                
+                if (filename.split('.').pop() == 'dic') {
                     wordsFiles.push(filename);
                 } else {
-                    var isDir = fs.statSync(filename).isDirectory();
-                    if (isDir) {
-                        var wf = this.listWordsFiles(filename);
-                        wordsFiles = wordsFiles.concat(wf);
+                    if (fs.statSync(filename).isDirectory()) {
+                        wordsFiles = wordsFiles.concat(this.listWordsFiles(filename));
                     }
                 }
             }
         }
         
+        files = null;
         return wordsFiles.sort();
     }
 });

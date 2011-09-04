@@ -16,10 +16,7 @@ var path = require("path"),
 ROOT_PATH = path.dirname(__filename);
 JSCLASS_PATH = ROOT_PATH + '/lib/JS.Class/src';
 
-require(JSCLASS_PATH + '/loader');
-JS.require('JS.Console');
-JS.require('JS.Class');
-JS.require('JS.Hash');
+require(ROOT_PATH + "/Bootstrap.js");
 require(ROOT_PATH + "/RestServer.js");
 require(ROOT_PATH + "/AnalyserResource.js");
 
@@ -40,12 +37,10 @@ var DIC_DIR = argv[ "dic-dir" ],
     };
     
     var resources = [ new AnalyserResource(DIC_DIR) ];
-    
-    
     var server = new RestServer(HOST, PORT, resources);
     server.setPathRewrite(pathRewriteTable);
     
     server.start();
 }());
 
-console.log( "Server running at http://" + HOST + ":" + PORT + "/" );
+LOGGER.info( "Server running at http://" + HOST + ":" + PORT + "/" );

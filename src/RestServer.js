@@ -66,7 +66,7 @@ RestServer = new JS.Class({
         }
        
         var reqUrl = url.parse(req.url);
-        sys.puts('find resource for request: url=' + req.url + ',pathname=' + reqUrl.pathname);
+        LOGGER.info('find resource for request: url=' + req.url + ',pathname=' + reqUrl.pathname);
         for (var i = 0; i < this.resources.length; i++) {
         if (this.resources[i].path.test(reqPath)) { return this.resources[i]; }
         }
@@ -74,14 +74,14 @@ RestServer = new JS.Class({
     },
     
     processRequest: function(resource, req, res) {
-        sys.puts('process request: method=' + req.method + ',resource=' + resource.constructor.name);
+    	LOGGER.info('process request: method=' + req.method + ',resource=' + resource.constructor.name);
         switch(req.method) {
             case 'GET': resource.doGet(req, res); break;
             case 'POST': resource.doPost(req, res); break;
             case 'DELETE': resource.doDelete(req, res); break;
             case 'PUT': resource.doPut(req, res); break;
             default:
-                sys.puts('unsupported method: ' + req.method);
+            	LOGGER.info('unsupported method: ' + req.method);
                 return false;
         }
         

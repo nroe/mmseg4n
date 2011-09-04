@@ -6,7 +6,6 @@
  */
 
 var fs = require("fs");
-var sys = require("sys");
 
 Io_FileLineReader = new JS.Class({
     initialize: function(filename, bufferSize)
