@@ -23,5 +23,5 @@ MMSeg4N 需要 NODEJS 0.4.*
 	在 127.0.0.1 的 8085 上启动分词服务，字典目录位 mmseg4n/data/
 	#./bin/mmseg4n.sh ./data/ 127.0.0.1 8085
 
-<img src="https://github.com/nroe/mmseg4n/asset/mmseg4n_cli.jpg" border = "1"/>
-<img src="https://github.com/nroe/mmseg4n/asset/mmseg4n_analyzer_chrome.jpg" border = "1"/>
+<img src="https://github.com/nroe/mmseg4n/raw/master/asset/mmseg4n_cli.jpg" border = "1"/>
+<img src="https://github.com/nroe/mmseg4n/raw/master/asset/mmseg4n_analyzer_chrome.jpg" border = "1"/>
