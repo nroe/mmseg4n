@@ -21,8 +21,9 @@ MMSeg4N 需要 NODEJS 0.4.*
 
 1. 下载并解压 mmseg4n 包
 2. 进入 nroe-mmseg4n-* 目录执行启动脚本
-    在 127.0.0.1 的 8085 上启动分词服务，字典目录位 mmseg4n/data/
-    #./bin/mmseg4n.sh ./data/ 127.0.0.1 8085
+
+       在 127.0.0.1 的 8085 上启动分词服务，字典目录位 mmseg4n/data/
+       #./bin/mmseg4n.sh ./data/ 127.0.0.1 8085
 
 <img src="https://github.com/nroe/mmseg4n/raw/master/asset/mmseg4n_cli.jpg" width="500px" border = "1"/>
 <img src="https://github.com/nroe/mmseg4n/raw/master/asset/mmseg4n_analyzer_chrome.jpg" width="500px" border = "1"/>
