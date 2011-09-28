@@ -9,10 +9,11 @@
 require(ROOT_PATH + "/Analysis/Analyzer/MMSeg/ChunkFilter.js");
 
 Analysis_Analyzer_MMSeg_ChunkFilter_LargestDegree = new JS.Class(Analysis_Analyzer_MMSeg_ChunkFilter, {
+    largestDegree : -0x80000000,
+    
     initialize: function()
     {
-        this.callSuper();
-        this.largestDegree = -0x80000000;
+        this.callSuper(); 
     },
     
     /**
@@ -25,7 +26,7 @@ Analysis_Analyzer_MMSeg_ChunkFilter_LargestDegree = new JS.Class(Analysis_Analyz
     addChunk: function(chunk)
     {
         var chunkDegree = chunk.getDegree();
-        if (chunkDegree > this.largestDegree) {
+        if (chunkDegree >= this.largestDegree) {
             this.largestDegree = chunkDegree;
             this.callSuper(chunk);
         }
@@ -36,6 +37,7 @@ Analysis_Analyzer_MMSeg_ChunkFilter_LargestDegree = new JS.Class(Analysis_Analyz
      */
     isRemove: function(chunk)
     {
+//        LOGGER.debug("isRemove largestDegree" + this.largestDegree + " chunk" + chunk.toTraceString());
         return (chunk.getDegree() < this.largestDegree);
     },
     

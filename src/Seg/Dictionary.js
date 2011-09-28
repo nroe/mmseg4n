@@ -6,29 +6,49 @@
  * @see mmseg4j.MaxWord
  */
 
-var util	= require('util');
+var util	= require('util'),
 	fs      = require("fs"),
-    path    = require("path");
+    path    = require("path"),
+    hash    = require(ROOT_PATH + "/lib/hash.js");
 
-require(ROOT_PATH + "/Io/FileLineReader.js");
 require(ROOT_PATH + "/Seg/Dictionary/CharNode.js");
 
 Seg_Dictionary = new JS.Class({
-    include : JS.Console,
     charsFilename : "/chars.dic",
     unitsFilename : "/units.dic",
     
-    dist : null,
-    unit : null,
+    dist : new Object(),
+    unit : new Object(),
+    loadUnitDone : false,
+    loadDistCharsDone : false,
+    loadDistWordsDone : false,
     
+    /**
+     * @var distWordsCount 统计加载词个数
+     * @var distWordsLength 统计加载词总长度
+     */
+    distWordsCount : 0,
+    distWordsLength : 0,
+    
+    /**
+     * @var lastLoadTime 最后一次加载时间
+     */
     lastLoadTime : -1,
     
+    /**
+     * @var dicPath 加载词典路径
+     */
     dicPath : null,
     
-    startDicMemoryUsage : 0,
-    endDicMemoryUsage : 0,
-    startDicTimestamp : 0,
-    endDicTimestamp : 0,
+    /**
+     * @var dicReadBufferSize 加载词典缓冲大小
+     * @see fs.createReadStream
+     */
+    dicReadBufferSize : 100,
+    
+    wordBuffer : new Object(),
+    wordLineEnd : new Object(),
+    wordLine : new Object(),
     
     initialize: function(path)
     {   
@@ -38,23 +58,47 @@ Seg_Dictionary = new JS.Class({
             this.dicPath = this.getDefalutPath();
         }
         
-        LOGGER.info("start load dictionary in \"" + this.dicPath + "\"");
+        LOGGER.info("start to load dictionary in \"" + this.dicPath + "\"");
         this.reload();
     },
     
+    getDist: function() { return this.dist; },
+    getDistInfo: function() { return { count:this.distWordsCount, length:this.distWordsLength, lastLoadTime:this.lastLoadTime }; },
+    
+    /**
+     * 重新载入字典
+     * 
+     * @return void
+     */
     reload: function()
     {
-    	this.startDicMemoryUsage = process.memoryUsage();
-        this.startDicTimestamp = Date.now();
+        this.loadUnitDone = false;
+        this.loadDistCharsDone = false;
+        this.loadDistWordsDone = false;
         
-        this.unit = this.loadUnit(this.dicPath);
-        this.dist = this.loadDic(this.dicPath);
+        try {
+            this.loadUnit(this.dicPath);
+            this.loadDic(this.dicPath);
+            
+            this.lastLoadTime = Date.now();
+        } catch (e) {
+            LOGGER.warn("dictionary load failed.");
+        }
+    },
+    
+    /**
+     * 判断所有字典是否全部加载完毕
+     * 注意：由于字典加载是异步的，所以应该先判断字典是否全部加载，再进行分词
+     * 
+     * @return boolean
+     */
+    isDicLoaded: function()
+    {
+        if ( this.loadUnitDone && this.loadDistCharsDone && this.loadDistWordsDone) {
+            return true;
+        }
         
-        this.lastLoadTime = this.endDicTimestamp = Date.now();
-        this.endDicMemoryUsage = process.memoryUsage();
-        LOGGER.debug("dictionary memory usage:"
-        		+ ((this.endDicMemoryUsage.rss - this.startDicMemoryUsage.rss) / 1024 / 1024)
-        		+ "(MB) elapsed time:" + ((this.endDicTimestamp - this.startDicTimestamp) / 1000) + "(SEC)");
+        return false;
     },
     
     getLastLoadTime: function()
@@ -62,44 +106,120 @@ Seg_Dictionary = new JS.Class({
         return this.lastLoadTime;
     },
     
+    _loadUnitsDic: function(string, dic)
+    {
+        c = string.charCodeAt(0);
+        if (35 == c) {
+            return;
+        }
+        
+        dic[c] = true;
+    },
+    
+    _loadCharsDic: function(string, dic)
+    {
+        var charCode = string.charCodeAt(0);
+        if (35 == charCode) {
+            return;
+        }
+        
+        var part = string.split(" ");
+        var cn = dic[charCode];
+        if (undefined == cn || null == cn) {
+            var cn = new Seg_Dictionary_CharNode();   
+        }
+        
+        switch (part.length) {
+            case 2:
+                cn.setFreq((Math.log(parseInt(part[1]))*100));
+            case 1:
+                dic[charCode] = cn;
+        }
+        
+        part = null;
+    },
+    
+    _loadWordDic: function(string, dic)
+    {
+        if (string.length < 2) {
+            return;
+        }
+        
+        var charCode = string.charCodeAt(0);
+        if (35 == charCode) {
+            return;
+        }
+        
+        var cn = dic[charCode];                   
+        if (undefined == cn || null == cn) {
+            cn = new Seg_Dictionary_CharNode();
+            dic[charCode] = cn;
+        }
+        
+        var wordTailChars = new Array();
+        var wordTail = string.substr(1, string.length -1);
+        
+        for (var l=0; l<wordTail.length; l++) {
+            wordTailChars.push(wordTail.charCodeAt(l));
+        }
+        
+        cn.addWordTail(wordTailChars);
+        wordTail = null;
+        
+
+        this.distWordsCount ++;
+        this.distWordsLength += string.length;
+    },
+    
     /**
      * 加载词典
      * 
      * @param string dicPath 词典目录
-     * @return JS.Hash key => unicode, value => Seg_Dictionary_CharNode
+     * @return void
      */
     loadDic: function(dicPath)
     {
-        var dic = new Object();
-        
+        dicPath = path.normalize(dicPath);
         if (!path.existsSync(dicPath)) {
-        	LOGGER.warn("dictionary directory \"" + dicPath  + "\" not exists");
-            return dic;
+        	LOGGER.warn("dictionary's directory \"" + dicPath  + "\" does not exist.");
+            return;
         }
         
-        var charsDicFilename = dicPath + this.charsFilename,
-            flr = new Io_FileLineReader(charsDicFilename);
-        
-        var line = null, part = null;
         /**
-         * 逐行读取 chars.dic 词典以及词频
+         * @var dic Object key => unicode, value => Seg_Dictionary_CharNode
          */
-        while (flr.hasNextLine()) {
-            line = flr.nextLine();
-            part = line.split(" ");
+        var dic = new Object(), self = this;
+        var charsDicFilename = dicPath + this.charsFilename;
+        var charsStream = fs.createReadStream(charsDicFilename, {
+            "flags": "r",
+            "encoding": "utf8",
+            "mode": 0666,
+            "bufferSize": this.dicReadBufferSize});
+        var charsBuffer = "",
+            lineEnd = -1, line = "";
+
+        charsStream.addListener("data", function(chunk) {
+            charsBuffer += chunk;
             
-            var cn = new Seg_Dictionary_CharNode();
-            switch (part.length) {
-                case 2:
-                    cn.setFreq((Math.log(parseInt(part[1]))*100));
-                case 1:
-                	dic[part[0].charCodeAt(0)] = cn;
+            do {
+                lineEnd = charsBuffer.indexOf("\n");
+                if (lineEnd > -1) {
+                    line = charsBuffer.substring(0, lineEnd);
+                    charsBuffer = charsBuffer.substring(lineEnd + 1, charsBuffer.length);
+                    
+                    self._loadCharsDic(line, dic);
+                }
+            } while(lineEnd > -1);
+        });
+        charsStream.addListener("end", function() {
+            if (charsBuffer.length > 0){
+                self._loadCharsDic(charsBuffer, dic);
             }
-        }
-        
-        line = null, part = null, flr = null;
-        
-        LOGGER.info("load chars.dic \"" + charsDicFilename + "\" success.");
+            
+            self.dist = dic;
+            self.loadDistCharsDone = true;
+            LOGGER.info("load [chars.dic] \"" + charsDicFilename + "\" successfully.");
+        });
         
         /**
          * 加载 word 词典
@@ -107,107 +227,125 @@ Seg_Dictionary = new JS.Class({
          * 如果包含子目录将递归加载
          */
         var
-         	wordsCount = 0;
-        	wordsLength = 0;
+         	wordsCount = 0,
+        	wordsLength = 0,
+        	wordsFileCount = 0,
          	words = this.listWordsFiles(),
-         	wordFilename = '',
-         	charCode = -1,
-         	wflr = null;
-         
-        for (var i = 0; i < words.length; i++) {
-        	 wordFilename = words[i];
+         	wordStream = {};
+        
+        for (var i=0; i<words.length; i++) {
+        	 var wordFilename = words[i];
+        	 
         	 switch (wordFilename) {
                  case (dicPath + this.charsFilename) : 
                  case (dicPath + this.unitsFilename) :
                     words.splice(i, 1);
                     break;
-                    
                  default :
-                     var
-                     	wordTailChars = new Array(),
-                     	wordTailCharCode = -1;
-                     	wordTail = null;
-                     	
+                     LOGGER.info("start to load word \"" + wordFilename + "\" ...");
+                     
+                     var wordHashID = hash.MD5.hexdigest(wordFilename);
+                     wordsFileCount ++;
+                     
                      /**
                       * 加载词典
                       */
-                     wflr = new Io_FileLineReader(wordFilename);
-                     while (wflr.hasNextLine()) {
-                         line = wflr.nextLine(),
-                         charCode = line.charCodeAt(0);
+                     var wordStream = fs.createReadStream(wordFilename, {
+                         "flags" : "r",
+                         "encoding" : "utf8",
+                         "mode" : 0666,
+                         "bufferSize" : this.dicReadBufferSize,
+                         "wordHashID" : wordHashID,
+                     });
+                     
+                     this.wordBuffer[wordHashID] = "";
+                     this.wordLineEnd[wordHashID] = -1;
+                     this.wordLine[wordHashID] = "";
+                     
+                     wordStream.addListener("data", function(chunk) {
+                         var wordHashID = this.wordHashID;
+                         self.wordBuffer[wordHashID] += chunk;
                          
-                         if (line.length < 2) {
-                             continue;
-                         }
-                        
-                         if (35 == charCode) {
-                             continue;
-                         }
-
-                         var cn = dic[charCode];                   
-                         if (undefined == cn || null == cn) {
-                             cn = new Seg_Dictionary_CharNode();
-                             dic[charCode] = cn;
-                         }
-                         
-                         wordTailChars.length = 0,
-                         wordTailCharCode = -1;
-                         wordTail = line.substr(1, line.length -1);
-                         
-                         for (var i=0; i< wordTail.length; i++) {
-                        	 wordTailCharCode = wordTail[i].charCodeAt(0);
-                        	 wordTailChars.push(wordTailCharCode);
+                         do {
+                             self.wordLineEnd[wordHashID] = self.wordBuffer[wordHashID].indexOf("\n");
+                             if (self.wordLineEnd[wordHashID] > -1) {
+                                 self.wordLine[wordHashID] = self.wordBuffer[wordHashID].substring(0, self.wordLineEnd[wordHashID]);
+                                 self.wordBuffer[wordHashID] = self.wordBuffer[wordHashID].substring(self.wordLineEnd[wordHashID] + 1,  self.wordBuffer[wordHashID].length);
+                                 
+                                 self._loadWordDic(self.wordLine[wordHashID], dic);
+                             }
+                         } while(self.wordLineEnd[wordHashID] > -1);
+                     });
+                     wordStream.addListener("end", function() {
+                         var wordHashID = this.wordHashID;
+                         if (self.wordBuffer[wordHashID].length > 0) {
+                             self._loadWordDic(self.wordBuffer[wordHashID], dic);
                          }
                          
-                         cn.addWordTail(wordTailChars);
-                         wordTail = null, wordTailCharCode = -1;
-                         wordsCount++;
-                         wordsLength += line.length;
-                     }
-                    
-                     LOGGER.info("load \"" + wordFilename + "\" success.");
+                         self.dist = dic;
+                         
+                         if ((wordsFileCount --) && wordsFileCount == 0) {
+                             self.loadDistWordsDone = true;
+                         }
+                         
+                         self.wordBuffer[wordHashID] = "";
+                         self.wordLineEnd[wordHashID] = -1;
+                         self.wordLine[wordHashID] = "";
+                     });
         	 }
         }
         
-        LOGGER.info("loaded dictionary success. word count:" + wordsCount + " word length:" + wordsLength);
         words = null;
-        return dic;
     },
     
     /**
      * 加载单位词典
+     * 逐行读取 units.dic 词典以及词频
      * 
      * @param string dicPath 词典目录
-     * @return JS.Hash
+     * @return void
      */
     loadUnit: function(dicPath)
     {
-    	var dic = new Object();
-        
+        dicPath = path.normalize(dicPath);
         if (!path.existsSync(dicPath)) {
-        	LOGGER.warn("dictionary directory \"" + dicPath  + "\" not exists");
-            return dic;
+        	LOGGER.warn("dictionary's directory \"" + dicPath  + "\" does not exist");
+            return;
         }
         
-        var unitsDicFilename = dicPath + this.unitsFilename,
-            flr = new Io_FileLineReader(unitsDicFilename);
-        
-        /**
-         * 逐行读取 units.dic 词典以及词频
-         */
-        while (flr.hasNextLine()) {
-            var line= flr.nextLine();
-                c   = line.charCodeAt(0);
+        var dic = new Object();
+        var unitsDicFilename = dicPath + this.unitsFilename;
+        var unitsStream = fs.createReadStream(unitsDicFilename, {
+            "flags": "r",
+            "encoding": "utf8",
+            "mode": 0666,
+            "bufferSize": this.dicReadBufferSize});
+        var unitsBuffer = "",
+            lineEnd = -1, line = "",
+            self = this;
+
+        unitsStream.addListener("data", function(chunk) {
+            unitsBuffer += chunk;
             
-            if (35 == c) {
-                continue;
+            do {
+                lineEnd = unitsBuffer.indexOf("\n");
+                if (lineEnd > -1) {
+                    line = unitsBuffer.substring(0, lineEnd);
+                    unitsBuffer = unitsBuffer.substring(lineEnd + 1, unitsBuffer.length);
+                    
+                    self._loadUnitsDic(line, dic);
+                }
+            } while(lineEnd > -1);
+        });
+        unitsStream.addListener("end", function() {
+            if (unitsBuffer.length > 0) {
+                self._loadUnitsDic(unitsBuffer, dic);
             }
             
-            dic[c] = true;
-        }
-        
-        LOGGER.info("load units.dic \"" + unitsDicFilename + "\" success.");
-        return dic;
+            self.unit = dic;
+            self.loadUnitDone = true;
+            LOGGER.info("load [units.dic] \"" + unitsDicFilename + "\" successfully.");
+        });
     },
     
     /**
@@ -270,7 +408,9 @@ Seg_Dictionary = new JS.Class({
         tailLens.push(0);
         
         if (null != node) {
-            return node.maxMatchNodeLengthList(tailLens, sen, offset+1);
+            var test = node.maxMatchNodeLengthList(tailLens, sen, offset+1);
+//            LOGGER.debug(" >maxMatchNodeLengthList:" + tailLens + " node:" + node + " offset:" + offset);
+            return test;
         }
         
         return tailLens;
@@ -310,10 +450,10 @@ Seg_Dictionary = new JS.Class({
     {
         if (Seg_Dictionary.defalutPath === null) {
             Seg_Dictionary.defalutPath = __dirname + '/data';
-            LOGGER.info("look up in default dictionary directory path:\"" + Seg_Dictionary.defalutPath + "\"");
+            LOGGER.info("find in the default dictionary directory \"" + Seg_Dictionary.defalutPath + "\"");
             
             if (!path.existsSync(Seg_Dictionary.defalutPath)) {
-                LOGGER.warn("default path:\"" + Seg_Dictionary.defalutPath + "\" is not exist.");
+                LOGGER.warn("the default dictionary  directory \"" + Seg_Dictionary.defalutPath + "\" does not exist.");
             }
         }
         
@@ -323,20 +463,21 @@ Seg_Dictionary = new JS.Class({
     /**
      * @return array 返回词典完整路径列表
     */
-    listWordsFiles: function(path)
+    listWordsFiles: function(fp)
     {
-        if (undefined == path || null == path) {
-            path = this.dicPath;
+        if (undefined == fp || null == fp) {
+            fp = this.dicPath;
         }
         
         var
-            files = fs.readdirSync(path),
+            files = fs.readdirSync(fp),
             wordsFiles = new Array();
         
         if (files instanceof Array) {
             var filename = '';
-            for(var i = 0; i < files.length; i++) {
-                filename = path + "/" + files[i];
+            for(var i=0; i<files.length; i++) {
+                filename = fp + "/" + files[i];
+                filename = path.normalize(filename);
                 
                 if (filename.split('.').pop() == 'dic') {
                     wordsFiles.push(filename);

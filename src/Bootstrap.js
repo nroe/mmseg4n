@@ -16,6 +16,9 @@ log4js.configure({
 		category: "mmseg4n",
 		type: "file",
 		filename: "mmseg4n.log",
+		level: "WARN",
+		maxLogSize: 1024,
+		backups: 3,
 		layout: {
 			type: "messagePassThrough"
 		}

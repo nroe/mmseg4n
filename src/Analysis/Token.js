@@ -124,11 +124,11 @@ Analysis_Token = new JS.Class('Analysis_Token', {
     /**
      * 获取词自由语素度
      * 
-     * @return Float
+     * @return Integer
      */
     getDegree: function()
     {
-        return this.degree;
+        return parseInt(this.degree);
     }
 });
 
@@ -304,6 +304,19 @@ Analysis_Chunk = new JS.Class({
         }
         
         return strBuf.join("_");
+    },
+    
+    toTraceString: function()
+    {
+        var str = this.toString();
+        
+        str += " [";
+        str += "length:" + this.getLength() + " ,";
+        str += "avgLength:" + this.getAvgLength() + " ,";
+        str += "variance:" + this.getVariance() + " ,";
+        str += "degree:" + this.getDegree() + "]"; 
+        
+        return str;
     }
 });
 

@@ -9,10 +9,11 @@
 require(ROOT_PATH + "/Analysis/Analyzer/MMSeg/ChunkFilter.js");
 
 Analysis_Analyzer_MMSeg_ChunkFilter_MaxMatch = new JS.Class(Analysis_Analyzer_MMSeg_ChunkFilter, {
+    maxChunkLength : 0,
+    
     initialize: function()
     {
         this.callSuper();
-        this.maxChunkLength = 0;
     },
     
     /**

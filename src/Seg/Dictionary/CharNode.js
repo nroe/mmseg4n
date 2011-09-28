@@ -13,21 +13,20 @@ Seg_Dictionary_KeyTree = new JS.Class({
 	
     initialize: function()
     {
-        this.head = { key: null, subNodes : new Array(), alsoLeaf : false };
+        this.head = { subNodes:[], alsoLeaf:false };
     },
     
     add: function(w)
-    {
+    {   
         if (w.length < 1) {
             return;
         }
         
         var p = this.head;
-        
         for (var i=0; i<w.length; i ++) {
         	var n = p.subNodes[w[i]];
-            if (undefined == n || null == n) {
-            	n = { key: w[i], subNodes : new Array(), alsoLeaf : false };
+            if (undefined == n) {
+            	n = { subNodes:[], alsoLeaf:false, word:String.fromCharCode(w[i]) };
             	p.subNodes[w[i]] = n;
             }
             
@@ -56,7 +55,7 @@ Seg_Dictionary_KeyTree = new JS.Class({
         var node = this.head;
         for (var i=offset; i<sen.length; i++) {
         	node = node.subNodes[sen[i]];
-            if (null != node) {
+            if (undefined != node) {
             	if (node.alsoLeaf) {
                     idx = i;
                 }
@@ -74,9 +73,9 @@ Seg_Dictionary_KeyTree = new JS.Class({
     maxMatchNodeLengthList: function(tailLens, sen, offset)
     {
         var node = this.head;
-        for (var i = offset; i < sen.length; i++) {
+        for (var i=offset; i<sen.length; i++) {
         	node = node.subNodes[sen[i]];
-            if (null !=  node) {
+            if (undefined !=  node) {
                 if (node.alsoLeaf) {
                     tailLens.push(i - offset + 1);
                 }

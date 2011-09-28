@@ -194,7 +194,7 @@ Seg = new JS.Class({
                         for(var i=0; i< this.bufSentence.length; i++) {
                             this.bufWord.push(
                                 new Analysis_Token(
-                                    this.bufSentence[i],
+                                    String.fromCharCode(this.bufSentence[i]),
                                     startIdx ++,
                                     Analysis_Token.TYPE_LETTER_NUMBER));
                         }

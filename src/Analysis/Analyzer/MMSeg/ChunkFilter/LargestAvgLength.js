@@ -9,10 +9,11 @@
 require(ROOT_PATH + "/Analysis/Analyzer/MMSeg/ChunkFilter.js");
 
 Analysis_Analyzer_MMSeg_ChunkFilter_LargestAvgLength = new JS.Class(Analysis_Analyzer_MMSeg_ChunkFilter, {
+    largestAvgLength : 0,
+    
     initialize: function()
     {
         this.callSuper();
-        this.largestAvgLength = 0;
     },
     
     /**
@@ -25,7 +26,7 @@ Analysis_Analyzer_MMSeg_ChunkFilter_LargestAvgLength = new JS.Class(Analysis_Ana
     addChunk: function(chunk)
     {
         var chunkAvgLength = chunk.getAvgLength();
-        if (chunkAvgLength > this.largestAvgLength) {
+        if (chunkAvgLength >= this.largestAvgLength) {
             this.largestAvgLength = chunkAvgLength;
             this.callSuper(chunk);
         }

@@ -38,8 +38,6 @@ RestServer = new JS.Class({
         this.httpServer.close();
     },
     
-
-    
     _onServerRequest: function(req, res) {
         var resource = this.findResource(req);
         var processed = false;

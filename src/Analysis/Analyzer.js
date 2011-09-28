@@ -3,6 +3,9 @@
  * @package MMSeg4N
  * @subpackage Analysis
  */
+
+var util = require('util');
+
 Analysis_Analyzer = new JS.Class({
     /**
      * @param Seg_Dictionary dic
@@ -60,13 +63,20 @@ Analysis_Analyzer = new JS.Class({
      * @see Seg_Dictionary::maxMatchNodeLengthList
      */
     maxMatchList: function(cns, cnIdx, chs, offset, tailLens, tailLensIdx)
-    {
+    {   
         var cn = null;
         if (offset < chs.length) {
             cn = this.dic.get(chs[offset]);
         }
         
+        var str = '';
+        for (var i=0; i< chs.length; i ++) {
+            str += String.fromCharCode(chs[i]);
+        }
+//        LOGGER.debug(" maxMatchList:" + str + " offset:" + offset + " tailLensIdx:" + tailLensIdx);
+        
         cns[cnIdx] = cn;
         this.dic.maxMatchNodeLengthList(cn, tailLens[tailLensIdx], chs, offset);
+//        LOGGER.debug(" >maxMatchList:" + tailLens.length);
     }
 });

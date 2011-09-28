@@ -9,10 +9,16 @@
 require(ROOT_PATH + "/Analysis/Analyzer/MMSeg/ChunkFilter.js");
 
 Analysis_Analyzer_MMSeg_ChunkFilter_SmallestVariance = new JS.Class(Analysis_Analyzer_MMSeg_ChunkFilter, {
+    smallestVariance : Number.MAX_VALUE,
+    
     initialize: function()
     {
         this.callSuper();
-        this.smallestVariance = Number.MAX_VALUE;
+    },
+    
+    addChunks: function(chunks)
+    {
+        this.callSuper(chunks);
     },
     
     /**
@@ -25,7 +31,7 @@ Analysis_Analyzer_MMSeg_ChunkFilter_SmallestVariance = new JS.Class(Analysis_Ana
     addChunk: function(chunk)
     {
         var chunkVariance = chunk.getVariance();
-        if (chunkVariance < this.smallestVariance) {
+        if (chunkVariance <= this.smallestVariance) {
             this.smallestVariance = chunkVariance;
             this.callSuper(chunk);
         }

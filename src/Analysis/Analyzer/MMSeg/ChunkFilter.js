@@ -7,6 +7,8 @@
  */
 
 Analysis_Analyzer_MMSeg_ChunkFilter = new JS.Class({
+    chunks : null,
+    
     initialize: function()
     {
         this.chunks = new Array();
@@ -14,8 +16,9 @@ Analysis_Analyzer_MMSeg_ChunkFilter = new JS.Class({
     
     addChunks: function(chunks)
     {
-        var tmp = this.chunks.concat(chunks);
-        this.chunks = tmp;
+        for (var i=0; i<chunks.length; i++) {
+            this.addChunk(chunks[i]);
+        }
     },
     
     /**
@@ -41,15 +44,15 @@ Analysis_Analyzer_MMSeg_ChunkFilter = new JS.Class({
      */
     remain: function()
     {
+        var filtered = new Array(); 
         for (var i=0; i<this.chunks.length; i++) {
             var chunk = this.chunks[i];
-            
-            if (this.isRemove(chunk)) {
-                this.chunks.splice(i, 1);
+            if (!this.isRemove(chunk)) {
+                filtered.push(chunk);
             }
         }
         
-        return this.chunks;
+        return filtered;
     },
     
     /**
